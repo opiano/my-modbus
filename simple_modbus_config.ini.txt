@@ -1,0 +1,52 @@
+# ===================================================
+# 1. 첫 번째 포트 : 지정된 시리얼 장비 (RTU)
+# ===================================================
+[RTUMaster]
+Device=/dev/ttyUSB0
+Baudrate=19200
+Parity=N
+Databits=8
+Stopbits=1
+
+# /dev/ttyUSB0 에 물려있는 1번 슬레이브 장비 데이터
+[Action]
+ActionSlaveAddress=1
+ActionStartRegister=1
+ActionRegisterCount=5
+ActionInterval_ms=1000
+
+# /dev/ttyUSB0 에 물려있는 2번 슬레이브 장비 데이터
+[Action]
+ActionSlaveAddress=2
+ActionStartRegister=10
+ActionRegisterCount=2
+ActionInterval_ms=1000
+
+
+# ===================================================
+# 2. 두 번째 포트 : 또 다른 시리얼 포트 (RTU)
+# ===================================================
+[RTUMaster]
+Device=/dev/ttyAMA0
+Baudrate=9600
+Parity=E
+Databits=8
+Stopbits=1
+
+[Action]
+ActionSlaveAddress=5
+ActionStartRegister=100
+ActionRegisterCount=10
+
+
+# ===================================================
+# 3. 세 번째 포트 : 기존 테스트하시던 TCP 통신
+# ===================================================
+[TCPMaster]
+IP=192.168.219.251
+Port=502
+
+[Action]
+ActionSlaveAddress=1
+ActionStartRegister=1
+ActionRegisterCount=5
