@@ -11,16 +11,20 @@ Stopbits=1
 # /dev/ttyUSB0 에 물려있는 1번 슬레이브 장비 데이터
 [Action]
 ActionSlaveAddress=1
+ActionFunctionCode=3
 ActionStartRegister=1
 ActionRegisterCount=5
 ActionInterval_ms=1000
+ActionDeviceValue=0
 
 # /dev/ttyUSB0 에 물려있는 2번 슬레이브 장비 데이터
 [Action]
 ActionSlaveAddress=2
+ActionFunctionCode=3
 ActionStartRegister=10
 ActionRegisterCount=2
 ActionInterval_ms=1000
+ActionDeviceValue=10
 
 
 # ===================================================
@@ -35,8 +39,10 @@ Stopbits=1
 
 [Action]
 ActionSlaveAddress=5
+ActionFunctionCode=3
 ActionStartRegister=100
 ActionRegisterCount=10
+ActionDeviceValue=20
 
 
 # ===================================================
@@ -48,5 +54,16 @@ Port=502
 
 [Action]
 ActionSlaveAddress=1
+ActionFunctionCode=3
 ActionStartRegister=1
 ActionRegisterCount=5
+ActionInterval_ms=1000
+ActionDeviceValue=40
+
+[Action]
+ActionSlaveAddress=1
+ActionFunctionCode=16
+ActionStartRegister=10
+ActionRegisterCount=2
+ActionInterval_ms=1000
+ActionDeviceValue=50

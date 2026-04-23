@@ -137,6 +137,10 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
                         currentAction->modbusAction.i16uRegisterCount = atoi(val);
                     } else if (strcmp(key, "ActionInterval_ms") == 0) {
                         currentAction->modbusAction.i32uInterval_us = atoi(val) * 1000;
+                    } else if (strcmp(key, "ActionFunctionCode") == 0) {
+                        currentAction->modbusAction.eFunctionCode = atoi(val);
+                    } else if (strcmp(key, "ActionDeviceValue") == 0) {
+                        currentAction->modbusAction.i32uStartByteProcessData = atoi(val);
                     }
                 }
             }

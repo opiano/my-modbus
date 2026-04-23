@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <syslog.h>
 #include <pthread.h>
+#include <string.h>
 
 #ifndef MODBUS_MAX_PDU_LENGTH 
 #define MODBUS_MAX_PDU_LENGTH 253
@@ -31,6 +32,8 @@
 #define MODBUS_ADDRESS_OFFSET 1
 
 pthread_mutex_t mutex_modbus_context = PTHREAD_MUTEX_INITIALIZER;
+
+uint8_t dummy_buffer[65536] = {0};
 
 /************************************************************************/
 /** @ brief processing the given modbus action and updates the process image
@@ -66,12 +69,12 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             {
                 break;
             }
-            for(int32_t i = 0; i < (mb_event->ptModbusAction->i16uRegisterCount); i++)
+            if (len > 0)
             {
-                // SPIValue coil_data_l;
-                // coil_data_l.i16uAddress = (uint16_t)(mb_event->ptModbusAction->i32uStartByteProcessData + (i / 8));
-                // coil_data_l.i8uBit      = ((mb_event->ptModbusAction->i8uStartBitProcessData)+i) % 8;
-                // coil_data_l.i8uValue    = buffer[i];
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(dummy_buffer))
+                {
+                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
+                }
             }		
         }   break;
             
@@ -86,12 +89,12 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             {
                 break;
             }
-            for (int32_t i = 0; i < (mb_event->ptModbusAction->i16uRegisterCount); i++)
+            if (len > 0)
             {
-                // SPIValue coil_data_l;
-                // coil_data_l.i16uAddress = (uint16_t)(mb_event->ptModbusAction->i32uStartByteProcessData + (i / 8));
-                // coil_data_l.i8uBit      = ((mb_event->ptModbusAction->i8uStartBitProcessData) + i) % 8;
-                // coil_data_l.i8uValue    = buffer[i];
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(dummy_buffer))
+                {
+                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
+                }
             }		
         }   break;
         
@@ -106,18 +109,14 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             {
                 break;
             }
-            // successful = piControlWrite(mb_event->ptModbusAction->i32uStartByteProcessData,
-            //     ((uint32_t)(mb_event->ptModbusAction->i16uRegisterCount << 1)),
-            //     buffer);
-            
-            // For testing purposes: Print out the read values
-            // (Moved to ModbusMasterThread to include IP address)
-
-            // if (successful < 0)
-            // {
-            //     syslog(LOG_ERR, "write to process image failed: %d\n", successful);
-            //     break;
-            // }
+            if (len > 0)
+            {
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + (len * 2) <= sizeof(dummy_buffer))
+                {
+                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
+                    successful = 0; // mark successful for legacy check
+                }
+            }
         }   break;
                 
     case eREAD_INPUT_REGISTERS:
@@ -131,32 +130,28 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             {
                 break;
             }
-            // successful = piControlWrite(mb_event->ptModbusAction->i32uStartByteProcessData,
-            //     ((uint32_t)(mb_event->ptModbusAction->i16uRegisterCount << 1)),
-            //     buffer);
-            // if (successful < 0)
-            // {
-            //     syslog(LOG_ERR, "write to process image failed: %d\n", successful);
-            //     break;
-            // }
+            if (len > 0)
+            {
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + (len * 2) <= sizeof(dummy_buffer))
+                {
+                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
+                    successful = 0;
+                }
+            }
         }   break;
         
     case eWRITE_SINGLE_REGISTER:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount == 1);
-            // successful = piControlRead(mb_event->ptModbusAction->i32uStartByteProcessData, mb_event->ptModbusAction->i16uRegisterCount << 1, (uint8_t*)buffer);	
-            // if (successful <= 0)
-            // {
-            //     syslog(LOG_ERR, "read from process image failed: %d\n", successful);
-            //     break;
-            // }
-            if (successful >= 0)
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + 2 <= sizeof(dummy_buffer))
             {
-                int val = buffer[0] + (buffer[1] << 8); // little endian
-                
+                uint16_t val;
+                memcpy(&val, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], 2);
+                memcpy(buffer, &val, 2);
                 len = modbus_write_register(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     val);
+                successful = (len >= 0) ? 0 : -1;
             }
         }   break;
             
@@ -169,19 +164,15 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_SINGLE_COIL:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount == 1);
-            for (int32_t i = 0; i < (mb_event->ptModbusAction->i16uRegisterCount); i++)
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + 1 <= sizeof(dummy_buffer))
             {
-                // SPIValue coil_data_l;
-                // coil_data_l.i16uAddress = (uint16_t)(mb_event->ptModbusAction->i32uStartByteProcessData + (i / 8));
-                // coil_data_l.i8uBit      = ((mb_event->ptModbusAction->i8uStartBitProcessData) + i) % 8;
-                // coil_data_l.i8uValue    = 0;
-                // buffer[i] = coil_data_l.i8uValue;
-            }
-            if (successful >= 0)
-            {
+                int val = dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData];
+                buffer[0] = val;
+                buffer[1] = 0;
                 len = modbus_write_bit(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
-                    buffer[0]);
+                    val);
+                successful = (len >= 0) ? 0 : -1;
             }
 
         }   break;
@@ -189,20 +180,14 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_MULTIPLE_COILS:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount <= MODBUS_MAX_WRITE_BITS);
-            for (int32_t i = 0; i < (mb_event->ptModbusAction->i16uRegisterCount); i++)
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + mb_event->ptModbusAction->i16uRegisterCount <= sizeof(dummy_buffer))
             {
-                // SPIValue coil_data_l;
-                // coil_data_l.i16uAddress = (uint16_t)(mb_event->ptModbusAction->i32uStartByteProcessData + (i / 8));
-                // coil_data_l.i8uBit      = ((mb_event->ptModbusAction->i8uStartBitProcessData) + i) % 8;
-                // coil_data_l.i8uValue    = 0;
-                // buffer[i] = coil_data_l.i8uValue;
-            }
-            if (successful >= 0)
-            {
+                memcpy(buffer, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount);
                 len = modbus_write_bits(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     mb_event->ptModbusAction->i16uRegisterCount,
                     (uint8_t*)buffer);
+                successful = (len >= 0) ? 0 : -1;
             }
 
         }   break;
@@ -210,18 +195,14 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_MULTIPLE_REGISTERS:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount <= MODBUS_MAX_WRITE_REGISTERS);
-            // successful = piControlRead(mb_event->ptModbusAction->i32uStartByteProcessData, mb_event->ptModbusAction->i16uRegisterCount << 1, (uint8_t*)buffer);	
-            // if (successful <= 0)
-            // {
-            //     syslog(LOG_ERR, "read from process image failed: %d\n", successful);
-            //     break;
-            // }
-            if (successful >= 0)
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + (mb_event->ptModbusAction->i16uRegisterCount * 2) <= sizeof(dummy_buffer))
             {
+                memcpy(buffer, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount * 2);
                 len = modbus_write_registers(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     mb_event->ptModbusAction->i16uRegisterCount,
                     (uint16_t*)buffer);
+                successful = (len >= 0) ? 0 : -1;
             }
         }   break;
             
