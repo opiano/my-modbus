@@ -33,8 +33,6 @@
 
 pthread_mutex_t mutex_modbus_context = PTHREAD_MUTEX_INITIALIZER;
 
-uint8_t dummy_buffer[65536] = {0};
-
 /************************************************************************/
 /** @ brief processing the given modbus action and updates the process image
  *  
@@ -48,7 +46,7 @@ uint8_t dummy_buffer[65536] = {0};
  *	
  */
 /************************************************************************/
-int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, uint8_t *buffer)
+int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, uint8_t *buffer, TModbusDataBuffer *pDataBuffer)
 {
     int32_t len = 0;
     int32_t successful = 0;
@@ -71,10 +69,12 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             }
             if (len > 0)
             {
-                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(dummy_buffer))
+                pthread_mutex_lock(&pDataBuffer->lock);
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(pDataBuffer->input_bits))
                 {
-                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
+                    memcpy(&pDataBuffer->input_bits[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
                 }
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }		
         }   break;
             
@@ -91,10 +91,12 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             }
             if (len > 0)
             {
-                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(dummy_buffer))
+                pthread_mutex_lock(&pDataBuffer->lock);
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= sizeof(pDataBuffer->input_bits))
                 {
-                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
+                    memcpy(&pDataBuffer->input_bits[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len);
                 }
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }		
         }   break;
         
@@ -111,11 +113,13 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             }
             if (len > 0)
             {
-                if (mb_event->ptModbusAction->i32uStartByteProcessData + (len * 2) <= sizeof(dummy_buffer))
+                pthread_mutex_lock(&pDataBuffer->lock);
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= 32)
                 {
-                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
+                    memcpy(&pDataBuffer->input_words[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
                     successful = 0; // mark successful for legacy check
                 }
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
         }   break;
                 
@@ -132,26 +136,31 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
             }
             if (len > 0)
             {
-                if (mb_event->ptModbusAction->i32uStartByteProcessData + (len * 2) <= sizeof(dummy_buffer))
+                pthread_mutex_lock(&pDataBuffer->lock);
+                if (mb_event->ptModbusAction->i32uStartByteProcessData + len <= 32)
                 {
-                    memcpy(&dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
+                    memcpy(&pDataBuffer->input_words[mb_event->ptModbusAction->i32uStartByteProcessData], buffer, len * 2);
                     successful = 0;
                 }
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
         }   break;
         
     case eWRITE_SINGLE_REGISTER:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount == 1);
-            if (mb_event->ptModbusAction->i32uStartByteProcessData + 2 <= sizeof(dummy_buffer))
+            pthread_mutex_lock(&pDataBuffer->lock);
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + 1 <= 32)
             {
-                uint16_t val;
-                memcpy(&val, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], 2);
+                uint16_t val = pDataBuffer->output_words[mb_event->ptModbusAction->i32uStartByteProcessData];
+                pthread_mutex_unlock(&pDataBuffer->lock);
                 memcpy(buffer, &val, 2);
                 len = modbus_write_register(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     val);
                 successful = (len >= 0) ? 0 : -1;
+            } else {
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
         }   break;
             
@@ -164,15 +173,19 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_SINGLE_COIL:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount == 1);
-            if (mb_event->ptModbusAction->i32uStartByteProcessData + 1 <= sizeof(dummy_buffer))
+            pthread_mutex_lock(&pDataBuffer->lock);
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + 1 <= sizeof(pDataBuffer->output_bits))
             {
-                int val = dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData];
+                int val = pDataBuffer->output_bits[mb_event->ptModbusAction->i32uStartByteProcessData];
+                pthread_mutex_unlock(&pDataBuffer->lock);
                 buffer[0] = val;
                 buffer[1] = 0;
                 len = modbus_write_bit(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     val);
                 successful = (len >= 0) ? 0 : -1;
+            } else {
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
 
         }   break;
@@ -180,14 +193,18 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_MULTIPLE_COILS:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount <= MODBUS_MAX_WRITE_BITS);
-            if (mb_event->ptModbusAction->i32uStartByteProcessData + mb_event->ptModbusAction->i16uRegisterCount <= sizeof(dummy_buffer))
+            pthread_mutex_lock(&pDataBuffer->lock);
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + mb_event->ptModbusAction->i16uRegisterCount <= sizeof(pDataBuffer->output_bits))
             {
-                memcpy(buffer, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount);
+                memcpy(buffer, &pDataBuffer->output_bits[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount);
+                pthread_mutex_unlock(&pDataBuffer->lock);
                 len = modbus_write_bits(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     mb_event->ptModbusAction->i16uRegisterCount,
                     (uint8_t*)buffer);
                 successful = (len >= 0) ? 0 : -1;
+            } else {
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
 
         }   break;
@@ -195,14 +212,18 @@ int32_t processModbusAction(modbus_t *pModbusContext, tModbusEvent* mb_event, ui
     case eWRITE_MULTIPLE_REGISTERS:
         {
             assert(mb_event->ptModbusAction->i16uRegisterCount <= MODBUS_MAX_WRITE_REGISTERS);
-            if (mb_event->ptModbusAction->i32uStartByteProcessData + (mb_event->ptModbusAction->i16uRegisterCount * 2) <= sizeof(dummy_buffer))
+            pthread_mutex_lock(&pDataBuffer->lock);
+            if (mb_event->ptModbusAction->i32uStartByteProcessData + mb_event->ptModbusAction->i16uRegisterCount <= 32)
             {
-                memcpy(buffer, &dummy_buffer[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount * 2);
+                memcpy(buffer, &pDataBuffer->output_words[mb_event->ptModbusAction->i32uStartByteProcessData], mb_event->ptModbusAction->i16uRegisterCount * 2);
+                pthread_mutex_unlock(&pDataBuffer->lock);
                 len = modbus_write_registers(pModbusContext,
                     mb_event->ptModbusAction->i32uStartRegister - MODBUS_ADDRESS_OFFSET,
                     mb_event->ptModbusAction->i16uRegisterCount,
                     (uint16_t*)buffer);
                 successful = (len >= 0) ? 0 : -1;
+            } else {
+                pthread_mutex_unlock(&pDataBuffer->lock);
             }
         }   break;
             

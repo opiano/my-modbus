@@ -13,6 +13,8 @@
 
 #include "project.h"
 
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
 #define _POSIX_C_SOURCE 200112L //clock_nanosleep and struct timespec
 #include <stdio.h>
 #include <errno.h>
@@ -24,6 +26,10 @@
 #include "ComAndDataProcessor.h"
 #include "ModbusMasterThread.h"
 #include <syslog.h>
+#include <sys/ioctl.h>
+#include <linux/serial.h>
+#include <termios.h>
+#include <string.h>
 
 #ifndef _MSC_VER
 #include <sys/time.h>
@@ -241,7 +247,10 @@ void *startTcpMasterThread(void *arg)
                     syslog(LOG_ERR, "Set Modbus slave address for next command failed: %s\n", modbus_strerror(errno));
                 }
         
-                int32_t ret_val_modbus_action = processModbusAction(pModbusContext, &nextEvent, buffer);
+                // apply dynamic debug level for libmodbus
+                modbus_set_debug(pModbusContext, g_iDebugLevel >= 2 ? 1 : 0);
+
+                int32_t ret_val_modbus_action = processModbusAction(pModbusContext, &nextEvent, buffer, &psModbusConfiguration_l->dataBuffer);
 
                 //store earliest next trigger time for next event
                 clock_gettime(CLOCK_MONOTONIC, &tv_current);
@@ -250,7 +259,7 @@ void *startTcpMasterThread(void *arg)
                 if (ret_val_modbus_action < 0)
                 {
                     if (g_iDebugLevel >= 1) {
-                        printf("[DEBUG] Modbus read failed: function 0x%02X, error %s\n", (int32_t)nextEvent.ptModbusAction->eFunctionCode, modbus_strerror(errno));
+                        printf("[DEBUG] Modbus TCP read failed: IP=%s function=0x%02X, error=%s\n", ptTcpConfig_l->szTcpIpAddress, (int32_t)nextEvent.ptModbusAction->eFunctionCode, modbus_strerror(errno));
                         fflush(stdout);
                     }
                     syslog(LOG_ERR,
@@ -288,7 +297,7 @@ void *startTcpMasterThread(void *arg)
                 }
                 else
                 {
-                    if (ret_val_modbus_action > 0) {
+                    if (ret_val_modbus_action > 0 && g_iDebugLevel >= 1) {
                         uint16_t *word_buffer = (uint16_t *)buffer;
                         for (int k = 0; k < nextEvent.ptModbusAction->i16uRegisterCount; k++) {
                             printf("[%s] Reg[%d]: %d\n", ptTcpConfig_l->szTcpIpAddress, nextEvent.ptModbusAction->i32uStartRegister + k, word_buffer[k]);
@@ -320,6 +329,17 @@ void cleanupRtuMasterThread(void *ptr)
     }
 }
 
+#if LIBMODBUS_VERSION_CHECK(3,1,4)
+// Dummy RTS function to trick libmodbus into enabling MODBUS_RTU_RS485 mode.
+// In this mode, libmodbus automatically calls tcdrain() after write(),
+// which acts exactly like the manual usleep delay in the user's snippet,
+// preventing FTDI TX FIFO corruption when select() is called too early.
+void ftdi_dummy_rts(modbus_t *ctx, int on)
+{
+    (void)ctx;
+    (void)on;
+}
+#endif
 
 void *startRtuMasterThread(void *arg)
 {
@@ -333,6 +353,9 @@ void *startRtuMasterThread(void *arg)
         if (!logRtuPath) {
             syslog(LOG_INFO, "RTU Master waiting for serial device:%s\n",
                 psModbusConfiguration_l->tModbusDeviceConfig.uProt.tRtuConfig.sz8DeviceFilePath);
+            printf("[DEBUG] RTU Master waiting for serial device: %s (Check permissions or existence)\n", 
+                psModbusConfiguration_l->tModbusDeviceConfig.uProt.tRtuConfig.sz8DeviceFilePath);
+            fflush(stdout);
             logRtuPath = 1;
         }
         /* Repeat checking in 1 Sec */
@@ -340,6 +363,9 @@ void *startRtuMasterThread(void *arg)
     }
     syslog(LOG_INFO, "RTU Master got serial device:%s\n",
         psModbusConfiguration_l->tModbusDeviceConfig.uProt.tRtuConfig.sz8DeviceFilePath);
+    printf("[DEBUG] RTU Master successfully opened serial device: %s\n", 
+        psModbusConfiguration_l->tModbusDeviceConfig.uProt.tRtuConfig.sz8DeviceFilePath);
+    fflush(stdout);
 
     //set realtime priority of the thread
     if(setprio(20, SCHED_RR) < 0)
@@ -385,13 +411,52 @@ void *startRtuMasterThread(void *arg)
         return NULL;
     }
 
-#if 0    
+    // FTDI ASYNC_LOW_LATENCY Fix
+    int fd = modbus_get_socket(pModbusContext);
+    if (fd >= 0) {
+        struct serial_struct serial;
+        if (ioctl(fd, TIOCGSERIAL, &serial) == 0) {
+            serial.flags |= ASYNC_LOW_LATENCY;
+            if (ioctl(fd, TIOCSSERIAL, &serial) == 0) {
+                syslog(LOG_INFO, "Applied ASYNC_LOW_LATENCY to fd %d\n", fd);
+            } else {
+                syslog(LOG_ERR, "Failed to set ASYNC_LOW_LATENCY\n");
+            }
+        }
+        
+        // Apply cfmakeraw and user snippet exactly to fix FTDI/RS485 floating bus BREAK flush issues
+        struct termios tios;
+        if (tcgetattr(fd, &tios) == 0) {
+            speed_t ispeed = cfgetispeed(&tios);
+            speed_t ospeed = cfgetospeed(&tios);
+            tcflag_t parity_stop = tios.c_cflag & (PARENB | PARODD | CSTOPB); // Save libmodbus parity/stop settings
+
+            memset(&tios, 0, sizeof(tios));
+            cfmakeraw(&tios);
+            tios.c_cflag = CREAD | CS8 | CLOCAL | HUPCL | parity_stop;
+            cfsetispeed(&tios, ispeed);
+            cfsetospeed(&tios, ospeed);
+            tios.c_iflag = IGNPAR;
+            
+            tcsetattr(fd, TCSANOW, &tios);
+            tcflush(fd, TCIOFLUSH);
+        }
+    }
+
+#if LIBMODBUS_VERSION_CHECK(3,1,4)
+    // Enable RS485 mode with a dummy RTS function to force tcdrain() after write()
+    modbus_rtu_set_custom_rts(pModbusContext, ftdi_dummy_rts);
+    if (modbus_rtu_set_serial_mode(pModbusContext, MODBUS_RTU_RS485) < 0) {
+        syslog(LOG_ERR, "Set Modbus serial mode failed: %s\n", modbus_strerror(errno));
+    }
+#else
     // the call make no sense because the used ioctl-call is not implmented in most serial drivers.
     if (modbus_rtu_set_serial_mode(pModbusContext, MODBUS_RTU_RS485) < 0)
     {
         syslog(LOG_ERR, "Set Modbus serial mode failed: %s\n", modbus_strerror(errno));
     }
 #endif
+
     pthread_cleanup_push(cleanupRtuMasterThread, pModbusContext);
     //syslog(LOG_ERR, "pthread_cleanup_push %p\n", pModbusContext);
     
@@ -540,7 +605,17 @@ void *startRtuMasterThread(void *arg)
             syslog(LOG_ERR, "Set Modbus slave address for next command failed: %s\n", modbus_strerror(errno));
         }
         
-        int32_t ret_val_modbus_action = processModbusAction(pModbusContext, &nextEvent, buffer);
+        // apply dynamic debug level for libmodbus
+        modbus_set_debug(pModbusContext, g_iDebugLevel >= 2 ? 1 : 0);
+
+        // FTDI / RS485 Turnaround Fix:
+        // 1. Flush the kernel buffers to discard any noise received while the bus was floating.
+        tcflush(modbus_get_socket(pModbusContext), TCIOFLUSH);
+        // 2. Emulate the user's 40-bit turnaround delay EXACTLY.
+        // 40 bits at 9600 baud = ~4.1ms. 5000us (5ms) guarantees the slave has released the bus.
+        usleep(5000);
+
+        int32_t ret_val_modbus_action = processModbusAction(pModbusContext, &nextEvent, buffer, &psModbusConfiguration_l->dataBuffer);
         
         //store earliest next trigger time for next event
         clock_gettime(CLOCK_MONOTONIC, &tv_current);
@@ -548,6 +623,13 @@ void *startRtuMasterThread(void *arg)
         
         if (ret_val_modbus_action < 0)
         {
+            if (g_iDebugLevel >= 1) {
+                printf("[DEBUG] Modbus RTU action failed: Device=%s, Slave=%d, Func=0x%02X, Reg=%d, Error=%s\n",
+                    ptRtuConfig_l->sz8DeviceFilePath, (int32_t)nextEvent.ptModbusAction->i8uSlaveAddress,
+                    (int32_t)nextEvent.ptModbusAction->eFunctionCode, (int32_t)nextEvent.ptModbusAction->i32uStartRegister,
+                    modbus_strerror(errno));
+                fflush(stdout);
+            }
             syslog(LOG_ERR,
                 "modbus rtu action device: %s, slave address: %d function: 0x%02X, address: %d failed %d/%d/%d\n",
                 ptRtuConfig_l->sz8DeviceFilePath,
@@ -576,7 +658,7 @@ void *startRtuMasterThread(void *arg)
         }
         else
         {
-            if (ret_val_modbus_action > 0) {
+            if (ret_val_modbus_action > 0 && g_iDebugLevel >= 1) {
                 uint16_t *word_buffer = (uint16_t *)buffer;
                 for (int k = 0; k < nextEvent.ptModbusAction->i16uRegisterCount; k++) {
                     printf("[%s] Reg[%d]: %d\n", ptRtuConfig_l->sz8DeviceFilePath, nextEvent.ptModbusAction->i32uStartRegister + k, word_buffer[k]);

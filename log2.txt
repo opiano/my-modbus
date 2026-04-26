@@ -1,0 +1,502 @@
+rmbian:~/my_modbus$ nano simple_modbus_config.ini
+pi@armbian:~/my_modbus$
+pi@armbian:~/my_modbus$ cat  !$
+cat  simple_modbus_config.ini
+# ===================================================
+# 1. Modbus TCP Master 설정 예시
+# ===================================================
+[TCPMaster]
+IP=192.168.219.103
+Port=502
+
+# Action 1 (Read): 1번 Slave의 Holding Register(주소 1)부터 5개의 데이터를 읽어옵니다.
+# 읽어온 데이터는 내부 dummy_buffer의 0번지(ActionDeviceValue=0)부터 저장됩니다.
+[Action]
+ActionSlaveAddress=1
+ActionFunctionCode=3
+ActionStartRegister=1
+ActionRegisterCount=5
+ActionInterval_ms=1000
+ActionDeviceValue=0
+
+# Action 2 (Write): 1번 Slave의 Holding Register(주소 10)에 2개의 데이터를 지속적으로 씁니다.
+# 내부 dummy_buffer의 20번지(ActionDeviceValue=20)에 있는 값을 읽어와서 전송합니다.
+[Action]
+ActionSlaveAddress=1
+ActionFunctionCode=16
+ActionStartRegister=10
+ActionRegisterCount=2
+ActionInterval_ms=1000
+ActionDeviceValue=20
+
+
+# ===================================================
+# 2. Modbus RTU Master 설정 예시
+# ===================================================
+[RTUMaster]
+Device=/dev/ttyUSB0
+Baudrate=19200
+Parity=N
+Databits=8
+Stopbits=1
+
+# Action 3 (Read): 2번 Slave의 Coil(주소 100) 상태 10개를 읽어옵니다.
+# 읽어온 데이터는 내부 dummy_buffer의 50번지(ActionDeviceValue=50)에 저장됩니다.
+[Action]
+ActionSlaveAddress=2
+ActionFunctionCode=1
+ActionStartRegister=100
+ActionRegisterCount=10
+ActionInterval_ms=500
+ActionDeviceValue=50
+
+# Action 4 (Write): 5번 Slave의 Single Register(주소 200)에 1개의 데이터를 씁니다.
+# 내부 dummy_buffer의 100번지(ActionDeviceValue=100)에 있는 값을 읽어와서 전송합니다.
+[Action]
+ActionSlaveAddress=5
+ActionFunctionCode=6
+ActionStartRegister=200
+ActionRegisterCount=1
+ActionInterval_ms=1000
+ActionDeviceValue=100
+pi@armbian:~/my_modbus$ ls
+'1$'        obj              piModbusSlave   simple_modbus_config_20260422.ini   src
+ Makefile   piModbusMaster   README.md       simple_modbus_config.ini
+pi@armbian:~/my_modbus$ ./piModbusMaster -d 2
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][02][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><02><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][03][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><03><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][04][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><04><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][05][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><05><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][06][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><06><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][07][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><07><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][08][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><08><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][09][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><09><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][0A][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><0A><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][0B][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><0B><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][0C][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><0C><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][0D][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><0D><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][0E][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><0E><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][0F][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><0F><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][10][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><10><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Modbus connection failed: ip=192.168.219.103 errno=Connection refused
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][02][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><02><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][03][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><03><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][04][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><04><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][05][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><05><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][06][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><06><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Modbus connection failed: ip=192.168.219.103 errno=Connection refused
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][02][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><02><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][03][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><03><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][04][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><04><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][05][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><05><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][06][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><06><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Modbus connection failed: ip=192.168.219.103 errno=Connection refused
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][02][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><02><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][03][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><03><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][04][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><04><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][05][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><05><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][06][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><06><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Modbus connection failed: ip=192.168.219.103 errno=Connection refused
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+
+[00][02][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><02><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][03][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><03><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][04][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><04><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+^C
+pi@armbian:~/my_modbus$ nano simple_modbus_config.ini
+pi@armbian:~/my_modbus$
+pi@armbian:~/my_modbus$ ./piModbusMaster -d 2
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+[00][01][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><01><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][02][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><02><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][03][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><03><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][04][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><04><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][05][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><05><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][06][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><06><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][07][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><07><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][08][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><08><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][09][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><09><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][0A][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><0A><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][0B][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><0B><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][0C][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><0C><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][0D][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><0D><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][0E][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><0E><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][0F][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><0F><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][10][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><10><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][11][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><11><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][12][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><12><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][13][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><13><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][14][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><14><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][15][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><15><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][16][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+<00><16><00><00><00><03><01><86><04>
+ERROR Slave device or server failure
+[DEBUG] Modbus read failed: function 0x06, error Slave device or server failure
+[00][17][00][00][00][0B][01][10][00][09][00][02][04][00][00][00][00]
+Waiting for a confirmation...
+<00><17><00><00><00><03><01><90><02>
+ERROR Illegal data address
+[DEBUG] Modbus read failed: function 0x10, error Illegal data address
+[00][18][00][00][00][06][01][03][00][00][00][05]
+Waiting for a confirmation...
+<00><18><00><00><00><0D><01><03><0A><00><0E><D2><08><01><00><08><00><00><06>
+[192.168.219.103] Reg[1]: 14
+[192.168.219.103] Reg[2]: 53768
+[192.168.219.103] Reg[3]: 256
+[192.168.219.103] Reg[4]: 2048
+[192.168.219.103] Reg[5]: 6
+[00][19][00][00][00][06][01][06][00][C7][00][00]
+Waiting for a confirmation...
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Modbus connection failed: ip=192.168.219.103 errno=Connection refused
+
+[DEBUG] Attempting to connect to TCP slave 192.168.219.103:502...
+Connecting to [192.168.219.103]:502
+[DEBUG] Successfully connected to 192.168.219.103:502
+^C
+pi@armbian:~/my_modbus$

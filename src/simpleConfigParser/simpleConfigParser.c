@@ -4,7 +4,7 @@
 #include <string.h>
 #include <syslog.h>
 
-#define CONFIG_FILE "simple_modbus_config.ini"
+#define CONFIG_FILE "modbus_config.ini"
 #define MAX_LINE 256
 
 // Simple INI parsing helper to extract value for a given key string
@@ -29,7 +29,7 @@ static void get_kv(char *line, char **key, char **val) {
     }
 }
 
-// Dummy/Simple approach: Reads simple_modbus_config.ini if it exists.
+// Dummy/Simple approach: Reads modbus_config.ini if it exists.
 // For now, it populates a single dummy master configuration if file reading fails
 // or if the user creates a basic one.
 void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_p)
@@ -37,7 +37,6 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
     FILE *fp = fopen(CONFIG_FILE, "r");
     
     struct TMBMasterConfigEntry *currentMaster = NULL;
-    struct TMBActionEntry *currentAction = NULL;
 
     if (fp) {
         char line[MAX_LINE];
@@ -49,10 +48,6 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
 
             // Start of a new TCP or RTU Master device
             if (strcmp(line, "[TCPMaster]") == 0 || strcmp(line, "[RTUMaster]") == 0) {
-                if (currentAction && currentMaster) {
-                    SLIST_INSERT_HEAD(&currentMaster->mbMasterConfig.mbActionListHead, currentAction, entries);
-                    currentAction = NULL;
-                }
                 if (currentMaster) {
                     SLIST_INSERT_HEAD(p_mbMasterConfHead_p, currentMaster, entries);
                 }
@@ -60,6 +55,8 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
                 currentMaster = calloc(1, sizeof(struct TMBMasterConfigEntry));
                 currentMaster->mbMasterConfig.i32ActionCount = 0;
                 SLIST_INIT(&currentMaster->mbMasterConfig.mbActionListHead);
+                memset(&currentMaster->mbMasterConfig.dataBuffer, 0, sizeof(TModbusDataBuffer));
+                pthread_mutex_init(&currentMaster->mbMasterConfig.dataBuffer.lock, NULL);
 
                 if (strcmp(line, "[TCPMaster]") == 0) {
                     currentMaster->mbMasterConfig.tModbusDeviceConfig.eProtocol = eProtTCP; 
@@ -76,38 +73,29 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
                 continue;
             }
 
-            // Start of a new Action block parsing
-            if (strcmp(line, "[Action]") == 0) {
-                if (!currentMaster) {
-                    // Create default TCP master if user forgot [TCPMaster] at the top
-                    currentMaster = calloc(1, sizeof(struct TMBMasterConfigEntry));
-                    currentMaster->mbMasterConfig.tModbusDeviceConfig.eProtocol = eProtTCP; 
-                    strncpy(currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tTcpConfig.szTcpIpAddress, "127.0.0.1", INET_ADDRSTRLEN-1);
-                    currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tTcpConfig.i32uPort = 502;
-                    currentMaster->mbMasterConfig.i32ActionCount = 0;
-                    SLIST_INIT(&currentMaster->mbMasterConfig.mbActionListHead);
-                }
-
-                if (currentAction) {
-                    SLIST_INSERT_HEAD(&currentMaster->mbMasterConfig.mbActionListHead, currentAction, entries);
-                }
-                
-                currentAction = calloc(1, sizeof(struct TMBActionEntry));
-                currentAction->modbusAction.eFunctionCode = eREAD_HOLDING_REGISTERS;
-                currentAction->modbusAction.i8uSlaveAddress = 1;         // default
-                currentAction->modbusAction.i32uStartRegister = 1;       // default
-                currentAction->modbusAction.i16uRegisterCount = 10;      // default
-                currentAction->modbusAction.i32uInterval_us = 1000000;   // 1 sec default
-                currentMaster->mbMasterConfig.i32ActionCount++;
-                continue;
-            }
-
             char *key, *val;
             get_kv(line, &key, &val);
             if (key && val) {
-                // If we are configuring the device (before any Action block)
-                if (currentMaster && !currentAction) {
-                    if (currentMaster->mbMasterConfig.tModbusDeviceConfig.eProtocol == eProtTCP) {
+                if (currentMaster) {
+                    if (strcmp(key, "Action") == 0) {
+                        struct TMBActionEntry *newAction = calloc(1, sizeof(struct TMBActionEntry));
+                        int slave, fc, reg, count, interval, val_idx;
+                        if (sscanf(val, "%d,%d,%d,%d,%d,%d", &slave, &fc, &reg, &count, &interval, &val_idx) == 6) {
+                            newAction->modbusAction.i8uSlaveAddress = slave;
+                            newAction->modbusAction.eFunctionCode = fc;
+                            newAction->modbusAction.i32uStartRegister = reg;
+                            newAction->modbusAction.i16uRegisterCount = count;
+                            newAction->modbusAction.i32uInterval_us = interval * 1000;
+                            newAction->modbusAction.i32uStartByteProcessData = (val_idx > 0) ? (val_idx - 1) : 0;
+                            
+                            SLIST_INSERT_HEAD(&currentMaster->mbMasterConfig.mbActionListHead, newAction, entries);
+                            currentMaster->mbMasterConfig.i32ActionCount++;
+                        } else {
+                            free(newAction);
+                            syslog(LOG_ERR, "Invalid Action format: %s\n", val);
+                        }
+                    }
+                    else if (currentMaster->mbMasterConfig.tModbusDeviceConfig.eProtocol == eProtTCP) {
                         if (strcmp(key, "IP") == 0) {
                             strncpy(currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tTcpConfig.szTcpIpAddress, val, INET_ADDRSTRLEN-1);
                         } else if (strcmp(key, "Port") == 0) {
@@ -126,22 +114,6 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
                             currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tRtuConfig.i8uStopbits = atoi(val);
                         }
                     }
-                } 
-                // If we are configuring an Action block
-                else if (currentAction) {
-                    if (strcmp(key, "ActionSlaveAddress") == 0) {
-                        currentAction->modbusAction.i8uSlaveAddress = atoi(val);
-                    } else if (strcmp(key, "ActionStartRegister") == 0) {
-                        currentAction->modbusAction.i32uStartRegister = atoi(val);
-                    } else if (strcmp(key, "ActionRegisterCount") == 0) {
-                        currentAction->modbusAction.i16uRegisterCount = atoi(val);
-                    } else if (strcmp(key, "ActionInterval_ms") == 0) {
-                        currentAction->modbusAction.i32uInterval_us = atoi(val) * 1000;
-                    } else if (strcmp(key, "ActionFunctionCode") == 0) {
-                        currentAction->modbusAction.eFunctionCode = atoi(val);
-                    } else if (strcmp(key, "ActionDeviceValue") == 0) {
-                        currentAction->modbusAction.i32uStartByteProcessData = atoi(val);
-                    }
                 }
             }
         }
@@ -150,26 +122,27 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
     
     // Fallback if no file exists or if no master was created
     if (!currentMaster) {
-        syslog(LOG_NOTICE, "simple_modbus_config.ini not found or empty. Using default dummy config.\n");
+        syslog(LOG_NOTICE, "modbus_config.ini not found or empty. Using default dummy config.\n");
         currentMaster = calloc(1, sizeof(struct TMBMasterConfigEntry));
         currentMaster->mbMasterConfig.tModbusDeviceConfig.eProtocol = eProtTCP; 
         strncpy(currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tTcpConfig.szTcpIpAddress, "127.0.0.1", INET_ADDRSTRLEN);
         currentMaster->mbMasterConfig.tModbusDeviceConfig.uProt.tTcpConfig.i32uPort = 502;
         currentMaster->mbMasterConfig.i32ActionCount = 1;
         SLIST_INIT(&currentMaster->mbMasterConfig.mbActionListHead);
+        memset(&currentMaster->mbMasterConfig.dataBuffer, 0, sizeof(TModbusDataBuffer));
+        pthread_mutex_init(&currentMaster->mbMasterConfig.dataBuffer.lock, NULL);
         
-        currentAction = calloc(1, sizeof(struct TMBActionEntry));
-        currentAction->modbusAction.eFunctionCode = eREAD_HOLDING_REGISTERS;
-        currentAction->modbusAction.i8uSlaveAddress = 1;
-        currentAction->modbusAction.i32uStartRegister = 1;
-        currentAction->modbusAction.i16uRegisterCount = 10;
-        currentAction->modbusAction.i32uInterval_us = 1000000;
+        
+        struct TMBActionEntry *dummyAction = calloc(1, sizeof(struct TMBActionEntry));
+        dummyAction->modbusAction.eFunctionCode = eREAD_HOLDING_REGISTERS;
+        dummyAction->modbusAction.i8uSlaveAddress = 1;
+        dummyAction->modbusAction.i32uStartRegister = 1;
+        dummyAction->modbusAction.i16uRegisterCount = 10;
+        dummyAction->modbusAction.i32uInterval_us = 1000000;
+        
+        SLIST_INSERT_HEAD(&currentMaster->mbMasterConfig.mbActionListHead, dummyAction, entries);
     }
 
-    // Insert the final remaining element into the list
-    if (currentAction && currentMaster) {
-        SLIST_INSERT_HEAD(&currentMaster->mbMasterConfig.mbActionListHead, currentAction, entries);
-    }
     if (currentMaster) {
         SLIST_INSERT_HEAD(p_mbMasterConfHead_p, currentMaster, entries);
     }

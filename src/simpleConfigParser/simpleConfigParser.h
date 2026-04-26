@@ -13,7 +13,7 @@ void get_master_device_config_list(struct TMBMasterConfHead *p_mbMasterConfHead_
 void get_slave_device_config_list(struct TMBSlaveConfHead *p_mbSlaveConfHead_p);
 
 // The parse functions simply read predefined parameters or parse an INI file
-// For this standalone setup, we will look for a default file "simple_modbus_config.ini" in the current directory.
+// For this standalone setup, we will look for a default file "modbus_config.ini" in the current directory.
 
 #ifdef __cplusplus
 }

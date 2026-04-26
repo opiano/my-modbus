@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <arpa/inet.h>
 #include <sys/queue.h>
+#include <pthread.h>
 
 
 #define MODBUS_RTU_MIN_DATABITS 5
@@ -142,9 +143,19 @@ typedef struct
 
 typedef struct
 {
+    uint16_t input_words[32];
+    uint16_t output_words[32];
+    uint8_t input_bits[32];
+    uint8_t output_bits[32];
+    pthread_mutex_t lock;
+} TModbusDataBuffer;
+
+typedef struct
+{
     TModbusDeviceConfiguration tModbusDeviceConfig;
     int32_t i32ActionCount;
     SLIST_HEAD(TMBActionListHead, TMBActionEntry) mbActionListHead; // Array of demanded actions, last element must be NULL
+    TModbusDataBuffer dataBuffer; // Per-master data buffer
 } TModbusMasterConfiguration;
 
 typedef struct
